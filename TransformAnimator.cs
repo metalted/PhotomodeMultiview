@@ -19,7 +19,8 @@ namespace PhotomodeMultiview
             public bool ortho;         // true for orthographic, false for perspective
             public bool useLookAt;
             public bool smoothLookAt;
-            public Vector3 lookAtTarget;
+            public Vector3 lookAtTarget; //static look-at
+            public string lookAtPlayerName; //dynamic look-at
         }
 
         private List<Frame> frames = new List<Frame>();
@@ -30,6 +31,8 @@ namespace PhotomodeMultiview
         public bool useLookAt;
         private bool smoothLookAt = false;
         public Vector3 lookAtTarget;
+
+        private Transform dynamicLookAtTransform;
 
         private Vector3 startPos;
         private Quaternion startRot;
@@ -82,10 +85,23 @@ namespace PhotomodeMultiview
 
             if (useLookAt)
             {
-                Vector3 dir = lookAtTarget - transform.position;
+                Vector3 targetPosLook;
+
+                if (dynamicLookAtTransform != null)
+                {
+                    targetPosLook = dynamicLookAtTransform.position;
+                }
+                else
+                {
+                    targetPosLook = lookAtTarget;
+                }
+
+                Vector3 dir = targetPosLook - transform.position;
+
                 if (dir.sqrMagnitude > 0.001f)
                 {
                     Quaternion lookRot = Quaternion.LookRotation(dir.normalized, Vector3.up);
+
                     if (smoothLookAt)
                     {
                         transform.rotation = Quaternion.Slerp(startRot, lookRot, t);
@@ -183,6 +199,69 @@ namespace PhotomodeMultiview
             useLookAt = frame.useLookAt;
             smoothLookAt = frame.smoothLookAt;
             lookAtTarget = frame.lookAtTarget;
+
+            if (!string.IsNullOrEmpty(frame.lookAtPlayerName))
+            {
+                var p = DroneCommand.players
+                    .FirstOrDefault(pl =>
+                        pl.username.Equals(frame.lookAtPlayerName, System.StringComparison.OrdinalIgnoreCase));
+
+                if (p == null)
+                {
+                    Debug.LogWarning($"[Animator] Player '{frame.lookAtPlayerName}' not found.");
+                    dynamicLookAtTransform = null;
+                    return;
+                }
+
+                var np = p.zeepkistNetworkPlayer;
+
+                if (np == null)
+                {
+                    Debug.LogError($"[Animator] NetworkPlayer is NULL for '{p.username}'");
+                    dynamicLookAtTransform = null;
+                    return;
+                }
+
+                // remote player → ghost model
+                if (!p.isLocalPlayer)
+                {
+                    dynamicLookAtTransform = np.Zeepkist?.ghostModel?.hatParent.transform;
+
+                    if (dynamicLookAtTransform == null)
+                        Debug.LogError($"[Animator] ghostModel is NULL for remote player '{p.username}'");
+
+                    return;
+                }
+
+                // local player → ReadyToReset
+                var local = GameObject.FindObjectOfType<ReadyToReset>(true);
+
+                if (local != null)
+                    dynamicLookAtTransform = local.transform;
+                else
+                    Debug.LogError("[Animator] ReadyToReset not found for local player");
+            }
+            else
+            {
+                dynamicLookAtTransform = null;
+            }
+
+
+            /*// Resolve dynamic look-at target
+            if (!string.IsNullOrEmpty(frame.lookAtPlayerName))
+            {
+                var p = DroneCommand.players
+                    .FirstOrDefault(pl => pl.username.Equals(frame.lookAtPlayerName, System.StringComparison.OrdinalIgnoreCase));
+
+                if (p != null && p.zeepkistNetworkPlayer != null)
+                    dynamicLookAtTransform = p.zeepkistNetworkPlayer?.Zeepkist?.gameObject.transform;
+                else
+                    dynamicLookAtTransform = null;
+            }
+            else
+            {
+                dynamicLookAtTransform = null;
+            }*/
         }
 
         private List<Frame> Parse(string script)
@@ -190,6 +269,7 @@ namespace PhotomodeMultiview
             try
             {
                 var parsed = new List<Frame>();
+
                 Vector3 pos = Vector3.zero;
                 Vector3 rot = Vector3.zero;
                 bool abs = false;
@@ -201,6 +281,7 @@ namespace PhotomodeMultiview
                 Vector3 lookTarget = Vector3.zero;
                 bool useLook = false;
                 bool smoothLook = false;
+                string lookAtPlayerName = null;
 
                 loop = false;
 
@@ -208,7 +289,9 @@ namespace PhotomodeMultiview
                 {
                     var parts = line.Split(' ');
                     var cmd = parts[0].ToLower();
-                    var args = parts.Skip(1).Select(float.Parse).ToArray();
+                    var args = parts.Length > 1
+                        ? parts.Skip(1).Select(s => float.TryParse(s, out var v) ? v : 0f).ToArray()
+                        : new float[0];
 
                     switch (cmd)
                     {
@@ -250,6 +333,44 @@ namespace PhotomodeMultiview
                             break;
                         case "loop":
                             loop = true;
+                            break;                       
+                        case "lookat":
+                            lookTarget = new Vector3(args[0], args[1], args[2]);
+                            useLook = true;
+                            smoothLook = false;
+                            break;
+                        case "smoothlookat":
+                            lookTarget = new Vector3(args[0], args[1], args[2]);
+                            useLook = true;
+                            smoothLook = true;
+                            break;
+                        case "lookatplayer":                            
+                            useLook = true;
+                            smoothLook = false;
+
+                            // Rebuild the full name after the command
+                            lookAtPlayerName = line.Substring(cmd.Length).Trim();
+
+                            Debug.Log($"[Parser] lookatplayer: captured name '{lookAtPlayerName}'");
+
+                            lookTarget = Vector3.zero;
+                            break;
+                        case "smoothlookatplayer":
+                            useLook = true;
+                            smoothLook = true;
+
+                            lookAtPlayerName = line.Substring(cmd.Length).Trim();
+
+                            Debug.Log($"[Parser] smoothlookatplayer: captured name '{lookAtPlayerName}'");
+
+                            lookTarget = Vector3.zero;
+                            break;
+
+                        case "clearlookat":
+                            useLook = false;
+                            smoothLook = false;
+                            lookAtPlayerName = null;
+                            lookTarget = Vector3.zero;
                             break;
                         case "time":
                             time = args[0];
@@ -265,7 +386,8 @@ namespace PhotomodeMultiview
                                 ortho = useOrtho,
                                 useLookAt = useLook,
                                 lookAtTarget = lookTarget,
-                                smoothLookAt = smoothLook
+                                smoothLookAt = smoothLook,
+                                lookAtPlayerName = lookAtPlayerName
                             });
 
                             //Reset after frame
@@ -280,24 +402,8 @@ namespace PhotomodeMultiview
                             lookTarget = Vector3.zero;
                             useLook = false;
                             smoothLook = false;
+                            lookAtPlayerName = null;
                             break;
-                        case "lookat":
-                            lookTarget = new Vector3(args[0], args[1], args[2]);
-                            useLook = true;
-                            smoothLook = false;
-                            break;
-                        case "smoothlookat":
-                            lookTarget = new Vector3(args[0], args[1], args[2]);
-                            useLook = true;
-                            smoothLook = true;
-                            break;
-
-                        case "clearlookat":
-                            useLook = false;
-                            smoothLook = false;
-                            break;
-
-
                     }
                 }
 

@@ -35,11 +35,15 @@ namespace PhotomodeMultiview
         public FollowMode followMode = FollowMode.Smooth;
         public PlayerData targetPlayer;
         private Transform targetTransform;
-        public Vector3 followOffset = new Vector3(0, 2, -3);
         public Vector3 lookOffset = new Vector3(6f, 0, 0);
+
+        public Vector3 followOffset = new Vector3(0, 2, -3);        
         public Vector3 firstPersonOffset = new Vector3(0, 0.2f, 2.2f);
         public Vector3 bumperOffset = new Vector3(0, 0.5f, 3.5f);
         public Vector3 lockedOffset = new Vector3(0, 1.7f, -3f);
+
+        private float lookAheadDistance = 5f;
+        private float smoothFollowSpeed = 5f;
 
         public bool isCinematic = false;
         public TransformAnimator anim;
@@ -49,7 +53,37 @@ namespace PhotomodeMultiview
 
         public void Setup(GameObject dronePrefab, bool isCinematic = false)
         {
-            this.isCinematic = isCinematic;            
+            this.isCinematic = isCinematic;
+
+            // Apply tuning from config
+            followOffset = new Vector3(
+                Plugin.Instance.followOffsetX.Value,
+                Plugin.Instance.followOffsetY.Value,
+                Plugin.Instance.followOffsetZ.Value
+            );
+
+            firstPersonOffset = new Vector3(
+                Plugin.Instance.firstPersonOffsetX.Value,
+                Plugin.Instance.firstPersonOffsetY.Value,
+                Plugin.Instance.firstPersonOffsetZ.Value
+            );
+
+            bumperOffset = new Vector3(
+                Plugin.Instance.bumperOffsetX.Value,
+                Plugin.Instance.bumperOffsetY.Value,
+                Plugin.Instance.bumperOffsetZ.Value
+            );
+
+            lockedOffset = new Vector3(
+                Plugin.Instance.lockedOffsetX.Value,
+                Plugin.Instance.lockedOffsetY.Value,
+                Plugin.Instance.lockedOffsetZ.Value
+            );
+
+            // These two are not vectors:
+            lookAheadDistance = Plugin.Instance.lookAheadDistance.Value;
+            smoothFollowSpeed = Plugin.Instance.smoothFollowSpeed.Value;
+
 
             //Add the drone prefab to the transfrom.
             GameObject cameraRig = Instantiate(dronePrefab, transform);
@@ -70,11 +104,16 @@ namespace PhotomodeMultiview
                 {
                     mainCamera = cam;
                 }
+                cam.transform.localPosition = Vector3.zero;
+                cam.transform.localRotation = Quaternion.identity;
             }
+
             mainCamera.targetTexture = camTexture;
             skyboxCamera.targetTexture = camTexture;
             mainCamera.depth = 1;
             skyboxCamera.depth = 0;
+
+            ApplyFOVForMode();
 
             // Spawn the UI
             GameObject uiGO = DroneWindowUIFactory.CreateDroneWindowUI(DroneCommand.canvas.transform);
@@ -104,6 +143,7 @@ namespace PhotomodeMultiview
             droneUI.OnFollowModeSelected = (modeName) =>
             {
                 followMode = (FollowMode)Enum.Parse(typeof(FollowMode), modeName);
+                ApplyFOVForMode();
             };
 
             if (isCinematic)
@@ -118,6 +158,37 @@ namespace PhotomodeMultiview
                 droneUI.speedDisplay.gameObject.SetActive(false);
             }
         }
+
+        private void ApplyFOVForMode()
+        {
+            float fov = Plugin.Instance.baseFOV.Value;
+
+            switch (followMode)
+            {
+                case FollowMode.Smooth:
+                    fov = Plugin.Instance.smoothFOV.Value;
+                    break;
+                case FollowMode.Strict:
+                    fov = Plugin.Instance.strictFOV.Value;
+                    break;
+                case FollowMode.Locked:
+                    fov = Plugin.Instance.lockedFOV.Value;
+                    break;
+                case FollowMode.Bumper:
+                    fov = Plugin.Instance.bumperFOV.Value;
+                    break;
+                case FollowMode.First:
+                    fov = Plugin.Instance.firstFOV.Value;
+                    break;
+            }
+
+            if (mainCamera != null)
+                mainCamera.fieldOfView = fov;
+
+            if (skyboxCamera != null)
+                skyboxCamera.fieldOfView = fov;
+        }
+
 
         void Update()
         {
@@ -142,7 +213,7 @@ namespace PhotomodeMultiview
 
             try
             {
-                Vector3 lookPoint = targetTransform.position + targetTransform.forward * 5f;
+                Vector3 lookPoint = targetTransform.position + targetTransform.forward * lookAheadDistance;
                 transform.LookAt(lookPoint);
 
                 switch (followMode)
@@ -150,9 +221,9 @@ namespace PhotomodeMultiview
                     case FollowMode.Smooth:
                         // Smooth follow logic
                         Vector3 desiredPosition = targetTransform.position + targetTransform.rotation * followOffset;
-                        transform.position = Vector3.Lerp(transform.position, desiredPosition, Time.deltaTime * 5f);
+                        transform.position = Vector3.Lerp(transform.position, desiredPosition, Time.deltaTime * smoothFollowSpeed);
                         Quaternion targetRotation = Quaternion.LookRotation(lookPoint - transform.position);
-                        transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 5f);
+                        transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * smoothFollowSpeed);
                         break;
                     case FollowMode.Strict:
                         transform.position = targetTransform.position + targetTransform.rotation * followOffset;
@@ -271,6 +342,20 @@ namespace PhotomodeMultiview
 
             return presetString;
         }
+
+        public void SetFOV(float fov)
+        {
+            float f = Mathf.Clamp(fov, 1f, 135f);
+            if(mainCamera != null)
+            {
+                mainCamera.fieldOfView = f;
+            }
+
+            if(skyboxCamera != null)
+            {
+                skyboxCamera.fieldOfView = f;                
+            }
+        }
        
         public void SetTarget(PlayerData player)
         {
@@ -300,10 +385,15 @@ namespace PhotomodeMultiview
                 mainCamera.enabled = true;
                 skyboxCamera.enabled = true;
                 following = true;
+                ApplyFOVForMode();
+
+                transform.position = targetTransform.position + targetTransform.rotation * followOffset;
+                Vector3 lookPoint = targetTransform.position + targetTransform.forward * lookAheadDistance;
+                transform.rotation = Quaternion.LookRotation(lookPoint - transform.position);
             }
             catch (Exception e)
             {
-                Debug.LogWarning("❌ Exception in SetTarget: " + e.Message);
+                Debug.LogWarning("Exception in SetTarget: " + e.Message);
                 ShutDown(false);
             }
         }

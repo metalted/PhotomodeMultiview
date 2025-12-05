@@ -34,6 +34,7 @@ namespace PhotomodeMultiview
         public static List<string> playerNames = new List<string>();
         public static Canvas canvas;
         public static Action<string> OnCommand;
+        public static int DroneCount => drones.Count;
 
         public static void Initialize()
         {
@@ -260,6 +261,23 @@ namespace PhotomodeMultiview
         public static PlayerData GetPlayer(string name)
         {
             return players.FirstOrDefault(p => p.username == name);
+        }
+
+        public static float GetPlayerTime(string username)
+        {
+            PlayerData player = GetPlayer(username);
+            if(player == null)
+            {
+                return -1f;
+            }
+
+            NetworkedZeepkistGhost g = player.zeepkistNetworkPlayer.Zeepkist;
+            if (g != null)
+            {
+                return g.displayRuntime;
+            }
+
+            return -1f;
         }
 
         public static void ShutDown()

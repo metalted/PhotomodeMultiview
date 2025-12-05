@@ -33,7 +33,32 @@ namespace PhotomodeMultiview
         }
     }
 
-   public class CreateDrone : ILuaFunction
+    public class OnPhotoDroneUpdate : ILuaEvent
+    {
+        public string Name => "PhotoDrone_OnUpdate";
+        private Action<float> _photoDroneAction;
+
+        public void Subscribe()
+        {
+            _photoDroneAction = dt =>
+            {
+                ScriptingApi.CallFunction(Name, dt);
+            };
+
+            Plugin.Instance.OnUpdate += _photoDroneAction;
+        }
+
+        public void Unsubscribe()
+        {
+            if(_photoDroneAction != null)
+            {
+                Plugin.Instance.OnUpdate -= _photoDroneAction;
+                _photoDroneAction = null;
+            }
+        }
+    }
+
+    public class CreateDrone : ILuaFunction
    {
         public string Namespace => "PhotoDrone";
         public string Name => "CreateDrone";
@@ -254,6 +279,26 @@ namespace PhotomodeMultiview
         }
     }
 
+    public class SetDroneFOV : ILuaFunction
+    {
+        public string Namespace => "PhotoDrone";
+        public string Name => "SetFOV";
+        public Delegate CreateFunction()
+        {
+            return new Action<string, float>(Implementation);
+        }
+
+        public void Implementation(string droneID, float fov)
+        {
+            PhotoDrone drone = DroneCommand.GetDrone(droneID);
+            Debug.Log(drone);
+            if (drone != null)
+            {
+                drone.SetFOV(fov);
+            }
+        }
+    }
+
     public class GetPlayerNames : ILuaFunction
     {
         public string Namespace => "PhotoDrone";
@@ -265,6 +310,43 @@ namespace PhotomodeMultiview
         private List<string> Implementation()
         {
             return DroneCommand.playerNames;
+        }
+    }
+
+    public class GetPlayerTime : ILuaFunction
+    {
+        public string Namespace => "PhotoDrone";
+        public string Name => "GetPlayerTime";
+        public Delegate CreateFunction()
+        {
+            return new Func<string, float>(Implementation);
+        }
+        private float Implementation(string username)
+        {
+            return DroneCommand.GetPlayerTime(username);
+        }
+    }
+
+    public class GetPlayerDistance : ILuaFunction
+    {
+        public string Namespace => "PhotoDrone";
+        public string Name => "GetPlayerDistance";
+        public Delegate CreateFunction()
+        {
+            return new Func<string, string, float>(Implementation);
+        }
+        private float Implementation(string droneID, string playerName)
+        {
+            PhotoDrone drone = DroneCommand.GetDrone(droneID);
+            PlayerData player = DroneCommand.GetPlayer(playerName);
+            if (drone != null && player != null)
+            {
+                return Vector3.Distance(drone.transform.position, player.zeepkistNetworkPlayer.Zeepkist.position);
+            }
+            else
+            {
+                return -1f;
+            }
         }
     }
 
@@ -383,6 +465,21 @@ namespace PhotomodeMultiview
                 ui.ShowUI = state;
                 ui.UpdateUI();
             }
+        }
+    }
+
+    public class InPhotomode : ILuaFunction
+    {
+        public string Namespace => "PhotoDrone";
+        public string Name => "InPhotomode";
+        public Delegate CreateFunction()
+        {
+            return new Func<bool>(Implementation);
+        }
+
+        private bool Implementation()
+        {
+            return Plugin.Instance.inPhotoMode;
         }
     }
 }
