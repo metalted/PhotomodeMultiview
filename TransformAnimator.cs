@@ -23,12 +23,18 @@ namespace PhotomodeMultiview
             public bool smoothLookAt;
             public Vector3 lookAtTarget; //static look-at
             public string lookAtPlayerName; //dynamic look-at
+            public FollowMode followMode;
+            public bool cinematicMode;
         }
 
         private List<Frame> frames = new List<Frame>();
         private int currentFrameIndex = 0;
         private float frameTimer = 0f;
         private bool isPlaying = false;
+
+        public PhotoDrone drone;
+        private bool cinMode = true;
+        private FollowMode folMode;
 
         public bool useLookAt;
         private bool smoothLookAt = false;
@@ -53,7 +59,7 @@ namespace PhotomodeMultiview
 
         public void Run(string script)
         {
-            StartAnimation(Parse(script));
+            SetupAnimation(Parse(script));
         }
 
         private void Update()
@@ -73,7 +79,28 @@ namespace PhotomodeMultiview
 
             frameTimer += Time.deltaTime;
             float t = Mathf.Clamp01(frameTimer / frame.time);
-
+            
+            if (!frame.cinematicMode)
+            {
+                drone.isCinematic = false;
+                drone.followMode = frame.followMode;
+                drone.droneUI.nameUI.gameObject.SetActive(true);
+                drone.droneUI.velocityUI.gameObject.SetActive(true);
+                drone.droneUI.speedDisplay.gameObject.SetActive(true);
+                if (t >= 1f)
+                {
+                    NextFrame();
+                }
+                return;
+            }
+            else
+            {
+                drone.isCinematic = true;
+                drone.droneUI.nameUI.gameObject.SetActive(false);
+                drone.droneUI.velocityUI.gameObject.SetActive(false);
+                drone.droneUI.speedDisplay.gameObject.SetActive(false);
+            }
+            
             // Movement
             if (frame.useLookAt && frame.useLocalSpace)
             {
@@ -131,13 +158,27 @@ namespace PhotomodeMultiview
             }
         }
 
-        public void StartAnimation(List<Frame> newFrames)
+        public void SetupAnimation(List<Frame> newFrames)
         {
             frames = newFrames;
             currentFrameIndex = 0;
             frameTimer = 0f;
+        }
+        public void StartAnimation()
+        {
+            if(frames.Count == 0)
+                return;
+            currentFrameIndex = 0;
+            frameTimer = 0f;
             isPlaying = true;
             SetupCurrentFrame();
+        }
+        
+        public void StopAnimation()
+        {
+            currentFrameIndex = 0;
+            frameTimer = 0f;
+            isPlaying = false;
         }
 
         private void NextFrame()
@@ -391,7 +432,9 @@ namespace PhotomodeMultiview
                                 useLookAt = useLook,
                                 lookAtTarget = lookTarget,
                                 smoothLookAt = smoothLook,
-                                lookAtPlayerName = lookAtPlayerName
+                                lookAtPlayerName = lookAtPlayerName,
+                                cinematicMode = cinMode,
+                                followMode = folMode
                             });
 
                             //Reset after frame
@@ -407,6 +450,16 @@ namespace PhotomodeMultiview
                             useLook = false;
                             smoothLook = false;
                             lookAtPlayerName = null;
+                            cinMode = true;
+                            folMode = FollowMode.Smooth;
+                            break;
+                        case "followmode":
+                            string rawMode = line.Substring(cmd.Length).Trim();
+                            Debug.Log($"[Parser] followmode  '{rawMode}'");
+                            if (!System.Enum.TryParse(rawMode, true, out FollowMode parsedMode))
+                                parsedMode = FollowMode.Smooth;
+                            cinMode = false;
+                            folMode = parsedMode;
                             break;
                     }
                 }

@@ -149,6 +149,7 @@ namespace PhotomodeMultiview
             if (isCinematic)
             {
                 anim = transform.gameObject.AddComponent<TransformAnimator>();
+                anim.drone = this;
                 anim.targetCamera1 = mainCamera;
                 anim.targetCamera2 = skyboxCamera;
 
@@ -196,6 +197,7 @@ namespace PhotomodeMultiview
             {
                 return;
             }
+            Debug.Log($"PhotoDrone Update {isCinematic} | {followMode}");
 
             if (targetPlayer == null || targetTransform == null)
             {
@@ -354,6 +356,38 @@ namespace PhotomodeMultiview
             if(skyboxCamera != null)
             {
                 skyboxCamera.fieldOfView = f;                
+            }
+        }
+        
+        public void SetCinematic(bool state, bool uiVisible = false, string script = "")
+        {
+            isCinematic = state;
+            if (isCinematic)
+            {
+                //anim = transform.gameObject.AddComponent<TransformAnimator>();
+                //anim.targetCamera1 = mainCamera;
+                //anim.targetCamera2 = skyboxCamera;
+                if (script != null && script != "")
+                    anim.Run(script);
+                else
+                    anim.StartAnimation();
+                
+                droneUI.SetVisibility(uiVisible);
+                droneUI.nameUI.gameObject.SetActive(false);
+                droneUI.velocityUI.gameObject.SetActive(false);
+                droneUI.speedDisplay.gameObject.SetActive(false);
+            }
+            else
+            {
+                //anim = transform.gameObject.AddComponent<TransformAnimator>();
+                //anim.targetCamera1 = mainCamera;
+                //anim.targetCamera2 = skyboxCamera;
+                anim.StopAnimation();
+
+                droneUI.SetVisibility(uiVisible);
+                droneUI.nameUI.gameObject.SetActive(true);
+                droneUI.velocityUI.gameObject.SetActive(true);
+                droneUI.speedDisplay.gameObject.SetActive(true);
             }
         }
        

@@ -15,7 +15,7 @@ namespace PhotomodeMultiview
     {
         public const string pluginGuid = "com.metalted.zeepkist.photodrone";
         public const string pluginName = "PhotoDrone";
-        public const string pluginVersion = "1.8.2";
+        public const string pluginVersion = "1.9.1";
 
         public static Plugin Instance;
 
@@ -169,6 +169,7 @@ namespace PhotomodeMultiview
 
         private void RegisterLua()
         {
+            ScriptingApi.RegisterType<UnityEngine.Vector3>();
             ScriptingApi.RegisterEvent<OnPhotoDroneCommand>();
             ScriptingApi.RegisterEvent<OnPhotoDroneUpdate>();
             ScriptingApi.RegisterFunction<CreateDrone>();
@@ -182,9 +183,11 @@ namespace PhotomodeMultiview
             ScriptingApi.RegisterFunction<SetDroneUI>();
             ScriptingApi.RegisterFunction<SetDroneFOV>();
             ScriptingApi.RegisterFunction<SetDroneLocked>();
+            ScriptingApi.RegisterFunction<SetDroneCinematic>();
             ScriptingApi.RegisterFunction<GetPlayerNames>();
             ScriptingApi.RegisterFunction<GetPlayerTime>();
             ScriptingApi.RegisterFunction<GetPlayerDistance>();
+            ScriptingApi.RegisterFunction<GetPlayerPosition>();
             ScriptingApi.RegisterFunction<GetDroneNames>();
             ScriptingApi.RegisterFunction<TogglePhotomode>();
             ScriptingApi.RegisterFunction<ShowPlayer>();

@@ -312,6 +312,25 @@ namespace PhotomodeMultiview
             return DroneCommand.playerNames;
         }
     }
+    
+    public class SetDroneCinematic : ILuaFunction
+    {
+        public string Namespace => "PhotoDrone";
+        public string Name => "SetCinematic";
+        public Delegate CreateFunction()
+        {
+            return new Action<string, bool, bool, string>(Implementation);
+        }
+
+        public void Implementation(string droneID, bool state, bool uiVisible = false, string script = "")
+        {
+            PhotoDrone drone = DroneCommand.GetDrone(droneID);
+            if (drone != null)
+            {
+                drone.SetCinematic(state, uiVisible, script);
+            }
+        }
+    }
 
     public class GetPlayerTime : ILuaFunction
     {
@@ -346,6 +365,28 @@ namespace PhotomodeMultiview
             else
             {
                 return -1f;
+            }
+        }
+    }
+    
+    public class GetPlayerPosition : ILuaFunction
+    {
+        public string Namespace => "PhotoDrone";
+        public string Name => "GetPlayerPosition";
+        public Delegate CreateFunction()
+        {
+            return new Func<string, Vector3>(Implementation);
+        }
+        private Vector3 Implementation(string playerName)
+        {
+            PlayerData player = DroneCommand.GetPlayer(playerName);
+            if (player != null)
+            {
+                return player.zeepkistNetworkPlayer.Zeepkist.position;
+            }
+            else
+            {
+                return new Vector3();
             }
         }
     }
@@ -426,6 +467,7 @@ namespace PhotomodeMultiview
                     if(drone.anim != null)
                     {
                         drone.anim.Run(script);
+                        drone.anim.StartAnimation();
                     }
                 }
             }

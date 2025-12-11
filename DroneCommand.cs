@@ -9,6 +9,7 @@ using ZeepSDK.PhotoMode;
 using ZeepSDK.ChatCommands;
 using ZeepSDK.Chat;
 using System;
+using ZeepSDK.Level;
 
 namespace PhotomodeMultiview
 {
@@ -75,6 +76,12 @@ namespace PhotomodeMultiview
             };
 
             MultiplayerApi.DisconnectedFromGame += () =>
+            {
+                ShutDown();
+                Plugin.Instance.shouldShowGUI = false;
+                Plugin.Instance.inPhotoMode = false;
+            };
+            RacingApi.RoundEnded += () =>
             {
                 ShutDown();
                 Plugin.Instance.shouldShowGUI = false;
